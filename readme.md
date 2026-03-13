@@ -24,7 +24,7 @@ This Cloudflare Worker provides an API endpoint for summarizing web articles usi
 The following environment variables need to be set:
 
 ### Required
-- `ALLOWED_DOMAINS`: Comma-separated list of allowed domains for article URLs (e.g., `fylsen.com,example.com`).
+- `ALLOWED_DOMAINS`: Comma-separated list of allowed domains for article URLs (e.g., `*.example.com`).
 
 ### Optional (AI Configuration)
 - `AI_PROVIDER`: The AI service provider to use (`openai`, `anthropic`, `google`, or `cloudflare`). Defaults to `cloudflare` if not set.
