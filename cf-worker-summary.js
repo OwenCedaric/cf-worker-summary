@@ -63,9 +63,13 @@ async function generateAndUpdateCache(env, articleUrl, langCode) {
   const content = await fetchContent(articleUrl)
   const aiResult = await generateSummary(env, content, langCode)
   
+  if (!aiResult.summary) {
+    throw new Error('AI failed to generate a summary')
+  }
+
   const result = {
     summary: aiResult.summary,
-    model: aiResult.model,
+    model: aiResult.model || env.AI_MODEL,
     created_at: Date.now()
   }
 
@@ -89,7 +93,7 @@ async function generateSummary(env, content, languageCode) {
         { role: 'user', content: truncatedContent }
       ]
     })
-    return { summary: res.response, model }
+    return { summary: res.response || '', model }
   }
 
   const providers = {
@@ -171,12 +175,12 @@ async function fetchContent(url) {
 
 async function getCache(db, url, lang) {
   return await db.prepare('SELECT summary, model, created_at FROM summaries WHERE article_url = ? AND language = ?')
-    .bind(url, lang).first()
+    .bind(url || '', lang || 'en').first()
 }
 
 async function setCache(db, url, summary, model, lang) {
   await db.prepare('INSERT OR REPLACE INTO summaries (article_url, summary, model, language, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(url, summary, model, lang, Date.now()).run()
+    .bind(url || '', summary || '', model || 'ai', lang || 'en', Date.now()).run()
 }
 
 function getDefaultPrompt(minLength = 200) {
