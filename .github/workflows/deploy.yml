@@ -14,41 +14,48 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install
 
       - name: Generate wrangler.toml
         run: |
           cat << EOF > wrangler.toml
           name = "${{ secrets.CLOUDFLARE_WORKER_NAME }}"
-          type = "javascript"
           main = "cf-worker-summary.js"
           compatibility_date = "2024-10-22"
           workers_dev = false
           routes = [{ pattern = "${{ secrets.SUMMARY_API }}/summary*", zone_id = "${{ secrets.CLOUDFLARE_ZONE_ID }}" }]
+
           [vars]
-          JINA_READER_URL = "${{ secrets.JINA_READER_URL }}"
           AI_PROVIDER = "${{ secrets.AI_PROVIDER }}"
           AI_MODEL = "${{ secrets.AI_MODEL }}"
           AI_API_KEY = "${{ secrets.AI_API_KEY }}"
           AI_ENDPOINT = "${{ secrets.AI_ENDPOINT }}"
           ALLOWED_DOMAINS = "${{ secrets.ALLOWED_DOMAINS }}"
           CACHE_TTL = "${{ secrets.CACHE_TTL }}"
-          RATE_LIMIT = "${{ secrets.RATE_LIMIT }}"
           MAX_CONTENT_LENGTH = "${{ secrets.MAX_CONTENT_LENGTH }}"
           SUMMARY_MIN_LENGTH = "${{ secrets.SUMMARY_MIN_LENGTH }}"
           #PROMPT_TEMPLATE = "${{ secrets.PROMPT_TEMPLATE }}"
-          [[kv_namespaces]]
-          binding = "KV"
-          id = "${{ secrets.KV_NAMESPACE_ID }}"
+
           [[d1_databases]]
           binding = "DB"
           database_name = "${{ secrets.D1_DATABASE_NAME }}"
           database_id = "${{ secrets.D1_DATABASE_ID }}"
+
           [ai]
           binding = "AI"
+
           [observability]
           enabled = true
           head_sampling_rate = 1
+
           [placement]
           mode = "smart"
           EOF

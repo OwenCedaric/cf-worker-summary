@@ -5,12 +5,12 @@ This Cloudflare Worker provides an API endpoint for summarizing web articles usi
 ## Features
 
 - Summarizes web articles from allowed domains
-- Supports multiple AI providers (OpenAI, Anthropic, Google, Cloudflare AI)
-- Generates summaries in multiple languages
-- Caches summaries to reduce API calls and improve response times
-- Implements rate limiting to prevent abuse
-- Configurable via environment variables
-- Automatically truncates long articles
+- Support for multiple AI providers (OpenAI, Anthropic, Google, Cloudflare AI)
+- **Engineered Architecture**: Based on [Hono](https://hono.dev/) framework, providing standard routing and middleware support
+- **Structured Output**: Automatically generates TL;DR, Key Takeaways, and Context
+- **High-Performance Caching**: Uses Stale-While-Revalidate mechanism for background updates
+- Automatic language detection and multi-language support
+- Configurable truncation and custom prompt templates
 
 ## Setup
 
@@ -31,32 +31,20 @@ The following environment variables need to be set:
 - `CACHE_TTL`: Cache time-to-live in seconds (e.g., 604800 for 7 days)
 - `MAX_CONTENT_LENGTH`: Maximum allowed length of article content to process
 - `SUMMARY_MIN_LENGTH`: Minimum length of generated summaries
-- `RATE_LIMIT`: (Optional) Maximum number of requests allowed per hour per IP
 - `PROMPT_TEMPLATE`: (Optional) Custom prompt template for AI requests
-- `JINA_READER_URL`: (Optional) URL for the Jina reader service (default: https://r.jina.ai)
 
 ### PROMPT_TEMPLATE
 
-The `PROMPT_TEMPLATE` environment variable allows you to customize the initial prompt sent to the AI service. If not set, a default template is used. The template should include instructions for the AI to act as a language expert proficient in multiple languages, skilled in reading and summarizing content.
+The `PROMPT_TEMPLATE` environment variable allows you to customize the AI prompt. By default, the worker uses a highly optimized **structured template** that guides the model to output:
+- **TL;DR**: A brief core essence summary.
+- **Key Takeaways**: Critical points or evidence from the article.
+- **Context/Conclusion**: Background significance or conclusion.
 
-Key points to include in the template:
-
-- Instructions for summarizing articles potentially containing HTML tags
-- Rules for content requirements, expression style, and format
-- Word count requirement (use `${SUMMARY_MIN_LENGTH}` placeholder)
-- Special considerations for handling multiple viewpoints, time-sensitive content, and distinguishing between facts and opinions
+If customizing, it's recommended to keep the `${language}` placeholder for multilingual support.
 
 ## Cloudflare Worker Bindings
 
 This Worker requires specific Cloudflare Worker bindings to function correctly:
-
-### KV Binding
-
-Used for storing rate limit information.
-
-1. Create a new KV namespace in the Cloudflare Workers console.
-2. In your Worker’s settings, add a KV Namespace binding.
-3. Name the binding `KV`.
 
 ### D1 Database Binding
 
@@ -73,12 +61,6 @@ Used for caching generated summaries.
      language TEXT NOT NULL,
      created_at INTEGER NOT NULL,
      PRIMARY KEY (article_url, language)
-   );
-
-   CREATE TABLE IF NOT EXISTS languages (
-     language_code TEXT PRIMARY KEY,
-     language_name TEXT NOT NULL,
-     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
    );
    ```
 
@@ -129,7 +111,7 @@ The API will return a JSON response with the following structure:
 
 ## Multi-language Support
 
-The worker supports generating summaries in multiple languages. It automatically selects the language based on the user’s request or the Accept-Language header. The worker uses the AI service to translate summaries into the requested language if it‘s different from English.
+The worker supports generating summaries in multiple languages. It automatically extracts BCP-47 language codes (e.g., `en-US`, `zh-CN`) from user request parameters or the `Accept-Language` header and passes them directly to the AI model. Modern LLMs are natively capable of understanding these codes and outputting content in the corresponding language.
 
 ## Error Handling
 
@@ -141,30 +123,24 @@ The API will return appropriate error messages and status codes for various erro
 - Content too long
 - AI API errors
 
-## Caching
+## Detailed Features
 
-Summaries are cached to improve performance and reduce API calls. The cache duration is controlled by the `CACHE_TTL` environment variable. Summaries are cached separately for each language.
+### Based on Hono Framework
 
-## Rate Limiting
+The project has been refactored using the [Hono](https://hono.dev/) framework. This provides:
+- **Semantic Routing**: Clear and standard API routing.
+- **Improved Middlewares**: Standard CORS and error handling.
+- **Modern Standards**: Consistent with Cloudflare Workers' best practices.
 
-To prevent abuse, the API implements rate limiting based on the client’s IP address. The maximum number of requests per hour is controlled by the `RATE_LIMIT` environment variable.
+### Caching Strategy (SWR)
 
-## AI Providers
-
-The worker supports multiple AI providers:
-
-- OpenAI
-- Anthropic
-- Google
-- Cloudflare AI
-
-## Long Article Handling
-
-For articles exceeding the `MAX_CONTENT_LENGTH`, the worker automatically truncates the content to the maximum allowed length before processing. This ensures predictable processing times and reasonable resource usage.
+Summaries are persisted in the D1 database.
+- **Stale-While-Revalidate**: If the cache is expired (exceeding `CACHE_TTL`), the worker returns the stale summary immediately while triggering a fresh summary generation in the background.
+- This ensures users always get sub-second responses while maintaining eventual consistency of content.
 
 ## Content Fetching
 
-The worker attempts to fetch article content using a reader service (default: https://r.jina.ai). If this fails, it falls back to directly fetching the HTML and extracting the content.
+The worker defaults to using the [Jina Reader](https://r.jina.ai) service to fetch article content. If this fails, it falls back to directly fetching the HTML and extracting the content.
 
 ## Security Considerations
 

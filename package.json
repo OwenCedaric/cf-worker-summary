@@ -1,0 +1,14 @@
+{
+  "name": "cf-worker-summary",
+  "version": "1.0.0",
+  "description": "Streamlined AI Summary Cloudflare Worker using Hono",
+  "main": "cf-worker-summary.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev cf-worker-summary.js",
+    "deploy": "wrangler deploy cf-worker-summary.js"
+  },
+  "dependencies": {
+    "hono": "^4.0.0"
+  }
+}
