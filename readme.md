@@ -23,28 +23,38 @@ This Cloudflare Worker provides an API endpoint for summarizing web articles usi
 
 The following environment variables need to be set:
 
-- `AI_PROVIDER`: The AI service provider to use (openai, anthropic, google, or cloudflare)
-- `AI_MODEL`: The specific AI model to use (e.g., gpt-3.5-turbo for OpenAI)
-- `AI_API_KEY`: Your API key for the chosen AI provider
-- `AI_ENDPOINT`: (Optional) Custom endpoint URL for the AI API
-- `ALLOWED_DOMAINS`: Comma-separated list of allowed domains for article URLs
-- `CACHE_TTL`: Cache time-to-live in seconds (e.g., 604800 for 7 days)
-- `MAX_CONTENT_LENGTH`: Maximum allowed length of article content to process
-- `SUMMARY_MIN_LENGTH`: Minimum length of generated summaries
-- `PROMPT_TEMPLATE`: (Optional) Custom prompt template for AI requests
+### Required
+- `ALLOWED_DOMAINS`: Comma-separated list of allowed domains for article URLs (e.g., `fylsen.com,example.com`).
+
+### Optional (AI Configuration)
+- `AI_PROVIDER`: The AI service provider to use (`openai`, `anthropic`, `google`, or `cloudflare`). Defaults to `cloudflare` if not set.
+- `AI_MODEL`: The specific AI model to use. Defaults to `@cf/meta/llama-4-scout-17b-16e-instruct` if not set.
+- `AI_API_KEY`: Your API key for the chosen AI provider. Not required for `cloudflare` provider if AI resource is bound.
+- `AI_ENDPOINT`: (Optional) Custom endpoint URL for the AI API.
+- `PROMPT_TEMPLATE`: (Optional) Custom prompt template for AI requests.
+
+### Other Options
+- `CACHE_TTL`: Cache time-to-live in seconds (default 604800 for 7 days).
+- `MAX_CONTENT_LENGTH`: Maximum allowed length of article content to process (default 10000).
+- `SUMMARY_MIN_LENGTH`: Minimum length requirements for generated summaries (default 200).
 
 ### PROMPT_TEMPLATE
 
-The `PROMPT_TEMPLATE` environment variable allows you to customize the AI prompt. By default, the worker uses a highly optimized **structured template** that guides the model to output:
-- **TL;DR**: A brief core essence summary.
-- **Key Takeaways**: Critical points or evidence from the article.
-- **Context/Conclusion**: Background significance or conclusion.
+The `PROMPT_TEMPLATE` environment variable allows you to customize the AI prompt instructions. By default, the worker uses a highly optimized **Simplified Chinese instruction set** that guides the model to:
+- **Plain Text Output**: Directly output a high-quality summary without any Markdown syntax.
+- **Deep Summary**: Extract 2-3 core takeaways into a single, cohesive, and professional paragraph.
+- **High Stability**: This format ensures maximum output consistency across all modern LLMs.
 
 If customizing, it's recommended to keep the `${language}` placeholder for multilingual support.
 
 ## Cloudflare Worker Bindings
 
 This Worker requires specific Cloudflare Worker bindings to function correctly:
+
+### AI Binding
+
+Used to call Cloudflare AI models directly.
+1. Add an `AI` binding in the Cloudflare Worker settings.
 
 ### D1 Database Binding
 

@@ -23,36 +23,38 @@
 
 需要设置以下环境变量：
 
-- `AI_PROVIDER`：要使用的 AI 服务提供商（openai、anthropic、google 或 cloudflare）
-- `AI_MODEL`：要使用的特定 AI 模型（例如，OpenAI 的 gpt-3.5-turbo）
-- `AI_API_KEY`：您选择的 AI 提供商的 API 密钥
-- `AI_ENDPOINT`：（可选）AI API 的自定义端点 URL
-- `ALLOWED_DOMAINS`：允许的文章 URL 域名列表，用逗号分隔
-- `CACHE_TTL`：缓存生存时间（以秒为单位，例如 604800 表示 7 天）
-- `MAX_CONTENT_LENGTH`：允许处理的文章内容的最大长度
-- `SUMMARY_MIN_LENGTH`：生成摘要的最小长度
-- `PROMPT_TEMPLATE`：（可选）AI 请求的自定义提示模板
+### 必填参数
+- `ALLOWED_DOMAINS`：允许的文章 URL 域名列表，用逗号分隔（如 `*.example.com`）。
+
+### 选填参数 (AI 配置)
+- `AI_PROVIDER`：AI 服务提供商（`openai`, `anthropic`, `google` 或 `cloudflare`）。未指定时默认为 `cloudflare`。
+- `AI_MODEL`：特定 AI 模型。未指定时默认为 `@cf/meta/llama-4-scout-17b-16e-instruct`。
+- `AI_API_KEY`：AI 提供商的 API 密钥。如果模型提供商是 `cloudflare` 且已绑定 AI 资源，则无需此项。
+- `AI_ENDPOINT`：AI API 的自定义端点 URL。
+- `PROMPT_TEMPLATE`：AI 请求的自定义提示模板。
+
+### 其他选填参数
+- `CACHE_TTL`：缓存生存时间（以秒为单位，默认 604800，即 7 天）。
+- `MAX_CONTENT_LENGTH`：允许处理的文章内容最大长度（默认 10000）。
+- `SUMMARY_MIN_LENGTH`：生成摘要的最小字数需求（默认 200）。
 
 ### PROMPT_TEMPLATE
 
-`PROMPT_TEMPLATE` 环境变量允许您自定义发送给 AI 服务的提示。默认情况下，Worker 使用一个高度优化的**结构化模板**，该模板要求模型输出：
-- **TL;DR**：核心本质的简短总结。
-- **Key Takeaways**：文章的关键要点或证据。
-- **Context/Conclusion**：背景意义或结论。
+`PROMPT_TEMPLATE` 环境变量允许您自定义发送给 AI 的摘要指令。默认情况下，Worker 使用一个高度优化的**简体中文指令**，要求模型：
+- **纯文本输出**：直接输出一段高质量的摘要，不使用任何 Markdown 语法。
+- **深度总结**：包含 2-3 个核心要点，整理成一个连贯、专业的段落。
+- **高稳定性**：这种模式在各种现代大模型上都能保证极高的输出一致性。
 
-如果自定义模板，建议保留 `${language}` 占位符以支持多语言。
+- **多语言支持**：如果自定义模板，建议保留 `${language}` 占位符以支持多语言。
 
 ## Cloudflare Worker 绑定
 
 这个 Worker 需要特定的 Cloudflare Worker 绑定才能正常运行：
 
-### KV 绑定
+### AI 绑定
 
-用于存储速率限制信息。
-
-1. 在 Cloudflare Workers 控制台中创建一个新的 KV 命名空间。
-2. 在您的 Worker 设置中，添加一个 KV 命名空间绑定。
-3. 将绑定命名为 `KV`。
+用于直接调用 Cloudflare 免费/付费的 AI 模型。
+1. 在 Worker 设置中，添加 `AI` 绑定。
 
 ### D1 数据库绑定
 
