@@ -5,10 +5,12 @@ This Cloudflare Worker provides an API endpoint for summarizing web articles usi
 ## Features
 
 - Summarizes web articles from allowed domains
+- **Document Support**: Direct summarization of **PDF, Word, Excel, PowerPoint** and other document formats
 - Support for multiple AI providers (OpenAI, Anthropic, Google, Cloudflare AI)
 - **Engineered Architecture**: Based on [Hono](https://hono.dev/) framework, providing standard routing and middleware support
 - **Structured Output**: Automatically generates TL;DR, Key Takeaways, and Context
 - **High-Performance Caching**: Uses Stale-While-Revalidate mechanism for background updates
+- **Hybrid Content Extraction**: Combines Jina Reader and Cloudflare Workers AI for optimal results
 - Automatic language detection and multi-language support
 - Configurable truncation and custom prompt templates
 
@@ -150,7 +152,10 @@ Summaries are persisted in the D1 database.
 
 ## Content Fetching
 
-The worker defaults to using the [Jina Reader](https://r.jina.ai) service to fetch article content. If this fails, it falls back to directly fetching the HTML and extracting the content.
+The worker uses a hybrid approach to ensure high-quality content extraction:
+1.  **Direct Document Detection**: If the URL points to a document (PDF, Docx, etc.), it uses Cloudflare Workers AI `toMarkdown()` directly.
+2.  **Jina Reader (Primary)**: For standard web URLs, it defaults to using [Jina Reader](https://r.jina.ai) for its superior anti-bot and cleaning capabilities.
+3.  **Cloudflare Fallback**: If Jina Reader fails, it falls back to a direct fetch and uses Cloudflare's `toMarkdown()` for robust content extraction from HTML.
 
 ## Security Considerations
 

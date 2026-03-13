@@ -60,7 +60,7 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404))
 // --- Logic Modules ---
 
 async function generateAndUpdateCache(env, articleUrl, langCode) {
-    const content = await fetchContent(articleUrl)
+    const content = await fetchContent(articleUrl, env)
     const aiResult = await generateSummary(env, content, langCode)
 
     if (!aiResult.summary) {
@@ -156,18 +156,35 @@ function validateDomain(url, allowedDomains) {
     if (!isAllowed) throw new Error('Domain not allowed')
 }
 
-async function fetchContent(url) {
+async function fetchContent(url, env) {
     try {
+        const isFile = /\.(pdf|docx|xlsx|pptx|odt|ods|odp|rtf|epub|csv)$/i.test(url)
+        
+        if (isFile) {
+            const fileRes = await fetch(url)
+            if (!fileRes.ok) throw new Error(`File fetch failed: ${fileRes.status}`)
+            const blob = await fileRes.blob()
+            const { markdown } = await env.AI.toMarkdown(blob)
+            return markdown
+        }
+
         const res = await fetch(`${CONFIG.DEFAULT_READER_URL}/${url}`)
         if (res.ok) return await res.text()
 
-        // Direct fallback
-        const direct = await fetch(url)
-        if (!direct.ok) throw new Error(`Fetch failed: ${direct.status}`)
-        const html = await direct.text()
-        const title = html.match(/<title>(.*?)<\/title>/)?.[1] || 'No Title'
-        const body = html.match(/<article[^>]*>([\s\S]*?)<\/article>/)?.[1]?.replace(/<[^>]+>/g, '') || 'No content'
-        return `# ${title}\n\n${body}`
+        // Fallback to direct fetch and Cloudflare toMarkdown
+        const direct = await fetch(url, {
+            headers: { 'User-Agent': 'Cloudflare-Worker' }
+        })
+        if (!direct.ok) throw new Error(`Direct fetch failed: ${direct.status}`)
+        
+        const contentType = direct.headers.get('Content-Type') || ''
+        if (contentType.includes('text/html')) {
+            const htmlBlob = await direct.blob()
+            const { markdown } = await env.AI.toMarkdown(htmlBlob)
+            return markdown
+        }
+        
+        return await direct.text()
     } catch (e) {
         throw new Error(`Content fetch error: ${e.message}`)
     }
