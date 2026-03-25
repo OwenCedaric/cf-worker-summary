@@ -164,7 +164,12 @@ async function fetchContent(url, env) {
             const fileRes = await fetch(url)
             if (!fileRes.ok) throw new Error(`File fetch failed: ${fileRes.status}`)
             const blob = await fileRes.blob()
-            const { markdown } = await env.AI.toMarkdown({ blob })
+            const fileName = new URL(url).pathname.split('/').pop() || 'document'
+            const { markdown } = await env.AI.toMarkdown({ 
+                blob, 
+                name: fileName,
+                mimeType: blob.type 
+            })
             return markdown
         }
 
@@ -180,7 +185,11 @@ async function fetchContent(url, env) {
         const contentType = direct.headers.get('Content-Type') || ''
         if (contentType.includes('text/html')) {
             const htmlBlob = await direct.blob()
-            const { markdown } = await env.AI.toMarkdown({ blob: htmlBlob })
+            const { markdown } = await env.AI.toMarkdown({ 
+                blob: htmlBlob, 
+                name: 'index.html', 
+                mimeType: 'text/html' 
+            })
             return markdown
         }
         
