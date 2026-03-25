@@ -3,7 +3,7 @@ import { cors } from 'hono/cors'
 
 /**
  * AI Article Summary Cloudflare Worker
- * Hono Framework version
+ * Hono Framework version - Bug Fixes Applied
  */
 
 const app = new Hono()
@@ -12,6 +12,9 @@ const CONFIG = {
     DEFAULT_READER_URL: 'https://r.jina.ai',
     DEFAULT_CLOUDFLARE_AI: '@cf/meta/llama-4-scout-17b-16e-instruct',
 }
+
+// 内存锁：防止同一实例下的缓存雪崩 (并发请求穿透)
+const pendingUpdates = new Set()
 
 // 1. Middleware
 app.use('*', cors())
@@ -40,9 +43,17 @@ app.get('/summary', async (c) => {
             return c.json({ summary: cached.summary, model: cached.model })
         }
 
-        // Generate Summary
+        // Generate Summary (Background update with lock)
         if (cached && isStale) {
-            c.executionCtx.waitUntil(generateAndUpdateCache(env, articleUrl, langCode))
+            const lockKey = `${articleUrl}-${langCode}`
+            if (!pendingUpdates.has(lockKey)) {
+                pendingUpdates.add(lockKey)
+                c.executionCtx.waitUntil(
+                    generateAndUpdateCache(env, articleUrl, langCode)
+                        .catch(err => console.error('Background update error:', err))
+                        .finally(() => pendingUpdates.delete(lockKey))
+                )
+            }
             return c.json({ summary: cached.summary, model: cached.model })
         }
 
@@ -79,7 +90,12 @@ async function generateAndUpdateCache(env, articleUrl, langCode) {
 
 async function generateSummary(env, content, languageCode) {
     const maxLength = parseInt(env.MAX_CONTENT_LENGTH || 10000)
-    const truncatedContent = content.slice(0, maxLength)
+
+    // Bug Fix: 安全截断，防止切断代理对字符（Surrogate pairs）导致脏数据
+    let truncatedContent = content.slice(0, maxLength)
+    if (/[\uD800-\uDBFF]$/.test(truncatedContent)) {
+        truncatedContent = truncatedContent.slice(0, -1)
+    }
 
     const provider = env.AI_PROVIDER?.toLowerCase() || 'cloudflare'
     const model = env.AI_MODEL || CONFIG.DEFAULT_CLOUDFLARE_AI
@@ -140,7 +156,11 @@ async function generateSummary(env, content, languageCode) {
 // --- Utilities ---
 
 function validateEnv(env) {
-    const required = ['ALLOWED_DOMAINS', 'AI', 'DB']
+    // Bug Fix: 仅在使用 Cloudflare 模型时强制校验 AI 绑定
+    const required = ['ALLOWED_DOMAINS', 'DB']
+    const provider = env.AI_PROVIDER?.toLowerCase() || 'cloudflare'
+    if (provider === 'cloudflare') required.push('AI')
+
     const missing = required.filter(k => !env[k])
     if (missing.length) throw new Error(`Missing bindings/vars: ${missing.join(', ')}`)
 }
@@ -159,18 +179,19 @@ function validateDomain(url, allowedDomains) {
 async function fetchContent(url, env) {
     try {
         const isFile = /\.(pdf|docx|xlsx|pptx|odt|ods|odp|rtf|epub|csv)$/i.test(url)
-        
+
         if (isFile) {
             const fileRes = await fetch(url)
             if (!fileRes.ok) throw new Error(`File fetch failed: ${fileRes.status}`)
             const blob = await fileRes.blob()
             const fileName = new URL(url).pathname.split('/').pop() || 'document'
-            const { markdown } = await env.AI.toMarkdown({ 
-                blob, 
+
+            const result = await env.AI.toMarkdown({
+                blob,
                 name: fileName,
-                mimeType: blob.type 
+                mimeType: blob.type
             })
-            return markdown
+            return Array.isArray(result) && result.length > 0 ? result[0].data : ''
         }
 
         const res = await fetch(`${CONFIG.DEFAULT_READER_URL}/${url}`)
@@ -181,18 +202,19 @@ async function fetchContent(url, env) {
             headers: { 'User-Agent': 'Cloudflare-Worker' }
         })
         if (!direct.ok) throw new Error(`Direct fetch failed: ${direct.status}`)
-        
+
         const contentType = direct.headers.get('Content-Type') || ''
         if (contentType.includes('text/html')) {
             const htmlBlob = await direct.blob()
-            const { markdown } = await env.AI.toMarkdown({ 
-                blob: htmlBlob, 
-                name: 'index.html', 
-                mimeType: 'text/html' 
+            // Bug Fix: 正确处理 HTML 回退的 toMarkdown 返回
+            const result = await env.AI.toMarkdown({
+                blob: htmlBlob,
+                name: 'index.html',
+                mimeType: 'text/html'
             })
-            return markdown
+            return Array.isArray(result) && result.length > 0 ? result[0].data : ''
         }
-        
+
         return await direct.text()
     } catch (e) {
         throw new Error(`Content fetch error: ${e.message}`)
