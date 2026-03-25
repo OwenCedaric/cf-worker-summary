@@ -52,6 +52,9 @@ jobs:
           [ai]
           binding = "AI"
 
+          [browser]
+          binding = "BROWSER"
+
           [observability]
           enabled = true
           head_sampling_rate = 1
