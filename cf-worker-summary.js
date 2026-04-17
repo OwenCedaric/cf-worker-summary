@@ -178,42 +178,15 @@ function validateDomain(url, allowedDomains) {
 
 async function fetchContent(url, env) {
     try {
-        const isFile = /\.(pdf|docx|xlsx|pptx|odt|ods|odp|rtf|epub|csv)$/i.test(url)
-
-        if (isFile) {
-            const fileRes = await fetch(url)
-            if (!fileRes.ok) throw new Error(`File fetch failed: ${fileRes.status}`)
-            const blob = await fileRes.blob()
-            const fileName = new URL(url).pathname.split('/').pop() || 'document'
-
-            const result = await env.AI.toMarkdown({
-                blob,
-                name: fileName,
-                mimeType: blob.type
-            })
-            return Array.isArray(result) && result.length > 0 ? result[0].data : ''
-        }
-
+        // 1. Try Jina Reader first (recommended for high-quality markdown conversion)
         const res = await fetch(`${CONFIG.DEFAULT_READER_URL}/${url}`)
         if (res.ok) return await res.text()
 
-        // Fallback to direct fetch and Cloudflare toMarkdown
+        // 2. Fallback to direct fetch
         const direct = await fetch(url, {
             headers: { 'User-Agent': 'Cloudflare-Worker' }
         })
         if (!direct.ok) throw new Error(`Direct fetch failed: ${direct.status}`)
-
-        const contentType = direct.headers.get('Content-Type') || ''
-        if (contentType.includes('text/html')) {
-            const htmlBlob = await direct.blob()
-            // Bug Fix: 正确处理 HTML 回退的 toMarkdown 返回
-            const result = await env.AI.toMarkdown({
-                blob: htmlBlob,
-                name: 'index.html',
-                mimeType: 'text/html'
-            })
-            return Array.isArray(result) && result.length > 0 ? result[0].data : ''
-        }
 
         return await direct.text()
     } catch (e) {
